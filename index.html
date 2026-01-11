@@ -2,7 +2,8 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- ✅ 禁止缩放：maximum-scale + user-scalable=no -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>白狼贪吃蛇</title>
   <style>
     :root {
@@ -24,6 +25,12 @@
       font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
     }
 
+    /* ✅ 禁止页面滚动/回弹/手势缩放的核心：overflow + touch-action + overscroll-behavior */
+    html, body {
+      width: 100%;
+      height: 100%;
+    }
+
     body {
       min-height: 100vh;
       display: flex;
@@ -36,6 +43,10 @@
       color: var(--text);
       padding: 32px;
       overflow: hidden;
+
+      /* ✅ 关键两行：禁触控滚动/缩放 + 禁橡皮筋回弹 */
+      touch-action: none;
+      overscroll-behavior: none;
     }
 
     .glow {
@@ -186,6 +197,7 @@
       border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
+    /* ✅ 画布也禁触控手势：避免在 canvas 上滑动触发浏览器手势 */
     canvas {
       width: 100%;
       aspect-ratio: 1 / 1;
@@ -194,6 +206,7 @@
         rgba(6, 12, 28, 0.9);
       border: 1px solid rgba(255, 255, 255, 0.12);
       box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.35);
+      touch-action: none;
     }
 
     .overlay {
@@ -287,6 +300,7 @@
       <div class="hint">
         <div class="pill">方向键 / WASD 控制</div>
         <p>吃到能量球会加速并发光，注意不要撞墙或咬到自己。</p>
+        <p style="margin-top: 8px;">📱 手机：在游戏画面上上下左右滑动即可控制方向</p>
       </div>
     </section>
 
@@ -376,7 +390,7 @@
       placeFood();
       updateStats();
       updateStatus("待机", "稳定");
-      showOverlay("准备好了吗？", "点击开始进入星河。", true);
+      showOverlay("准备好了吗？", "点击开始进入游戏。", true);
     }
 
     function updateStats() {
@@ -611,6 +625,54 @@
         updateStats();
       }
     }, 1000);
+
+    // ✅ ===== 手机滑动控制方向（在 canvas 上滑动即可）=====
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const SWIPE_THRESHOLD = 30;
+
+    canvas.addEventListener(
+      "touchstart",
+      (e) => {
+        // 阻止浏览器默认手势（滚动/回弹/双指缩放）
+        e.preventDefault();
+        const t = e.touches[0];
+        touchStartX = t.clientX;
+        touchStartY = t.clientY;
+      },
+      { passive: false }
+    );
+
+    canvas.addEventListener(
+      "touchend",
+      (e) => {
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        const dx = t.clientX - touchStartX;
+        const dy = t.clientY - touchStartY;
+
+        if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) {
+          return;
+        }
+
+        if (Math.abs(dx) > Math.abs(dy)) {
+          // 左右
+          if (dx > 0) {
+            handleDirection(1, 0);
+          } else {
+            handleDirection(-1, 0);
+          }
+        } else {
+          // 上下
+          if (dy > 0) {
+            handleDirection(0, 1);
+          } else {
+            handleDirection(0, -1);
+          }
+        }
+      },
+      { passive: false }
+    );
   </script>
 </body>
 </html>
