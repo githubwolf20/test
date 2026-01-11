@@ -2,9 +2,16 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1023" />
   <title>白狼贪吃蛇</title>
+  <link rel="manifest" href="manifest.json" />
   <style>
+    html,
+    body {
+      height: 100%;
+    }
+
     :root {
       --bg-1: #0b1023;
       --bg-2: #121a3a;
@@ -36,6 +43,8 @@
       color: var(--text);
       padding: 32px;
       overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: none;
     }
 
     .glow {
@@ -194,6 +203,7 @@
         rgba(6, 12, 28, 0.9);
       border: 1px solid rgba(255, 255, 255, 0.12);
       box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.35);
+      touch-action: none;
     }
 
     .overlay {
@@ -240,9 +250,44 @@
       border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
+    .touch-controls {
+      display: none;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .touch-controls .pad {
+      display: grid;
+      grid-template-columns: repeat(3, 58px);
+      grid-template-rows: repeat(3, 58px);
+      gap: 8px;
+    }
+
+    .touch-controls button {
+      border: none;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 600;
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 10px 24px rgba(5, 9, 24, 0.4);
+      transition: transform 0.15s ease, background 0.15s ease;
+      touch-action: none;
+    }
+
+    .touch-controls button:active {
+      transform: scale(0.96);
+      background: rgba(255, 255, 255, 0.16);
+    }
+
     @media (max-width: 900px) {
       body {
-        padding: 20px;
+        padding: 16px;
+        align-items: stretch;
       }
 
       .app {
@@ -251,6 +296,10 @@
 
       .panel {
         padding: 18px;
+      }
+
+      .touch-controls {
+        display: grid;
       }
     }
   </style>
@@ -285,7 +334,7 @@
       </div>
 
       <div class="hint">
-        <div class="pill">方向键 / WASD 控制</div>
+        <div class="pill">方向键 / WASD / 触控滑动</div>
         <p>吃到能量球会加速并发光，注意不要撞墙或咬到自己。</p>
       </div>
     </section>
@@ -303,6 +352,19 @@
             <p id="overlayText">点击开始进入游戏。</p>
             <button id="overlayBtn">立即开始</button>
           </div>
+        </div>
+      </div>
+      <div class="touch-controls" aria-label="触控方向键">
+        <div class="pad">
+          <span></span>
+          <button type="button" data-direction="up" aria-label="向上">↑</button>
+          <span></span>
+          <button type="button" data-direction="left" aria-label="向左">←</button>
+          <button type="button" data-direction="down" aria-label="向下">↓</button>
+          <button type="button" data-direction="right" aria-label="向右">→</button>
+          <span></span>
+          <button type="button" data-direction="pause" aria-label="暂停/继续">⏯</button>
+          <span></span>
         </div>
       </div>
     </section>
@@ -325,6 +387,7 @@
     const overlayBtn = document.getElementById("overlayBtn");
     const overlayTitle = document.getElementById("overlayTitle");
     const overlayText = document.getElementById("overlayText");
+    const touchButtons = document.querySelectorAll("[data-direction]");
 
     const gridSize = 20;
     const tileCount = 24;
@@ -408,6 +471,7 @@
       state.paused = false;
       hideOverlay();
       updateStatus("运行中", state.glow > 0 ? "能量爆发" : "稳定");
+      requestFullscreen();
     }
 
     function pauseGame() {
@@ -543,6 +607,46 @@
       state.nextDirection = { x, y };
     }
 
+    function requestFullscreen() {
+      if (document.fullscreenElement) return;
+      const root = document.documentElement;
+      if (root.requestFullscreen) {
+        root.requestFullscreen().catch(() => {});
+      }
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock("portrait").catch(() => {});
+      }
+    }
+
+    function handleTouchButton(e) {
+      const direction = e.currentTarget.dataset.direction;
+      if (direction === "pause") {
+        if (state.paused) {
+          startGame();
+        } else {
+          pauseGame();
+        }
+        return;
+      }
+      requestFullscreen();
+      switch (direction) {
+        case "up":
+          handleDirection(0, -1);
+          break;
+        case "down":
+          handleDirection(0, 1);
+          break;
+        case "left":
+          handleDirection(-1, 0);
+          break;
+        case "right":
+          handleDirection(1, 0);
+          break;
+        default:
+          break;
+      }
+    }
+
     function handleKey(e) {
       switch (e.key) {
         case "ArrowUp":
@@ -584,6 +688,47 @@
       startGame();
     }
 
+    function setupSwipeControls() {
+      let startX = 0;
+      let startY = 0;
+      let tracking = false;
+
+      canvas.addEventListener(
+        "touchstart",
+        (event) => {
+          const touch = event.touches[0];
+          if (!touch) return;
+          tracking = true;
+          startX = touch.clientX;
+          startY = touch.clientY;
+          requestFullscreen();
+        },
+        { passive: true }
+      );
+
+      canvas.addEventListener(
+        "touchend",
+        (event) => {
+          if (!tracking) return;
+          const touch = event.changedTouches[0];
+          if (!touch) return;
+          const deltaX = touch.clientX - startX;
+          const deltaY = touch.clientY - startY;
+          const threshold = 26;
+          if (Math.abs(deltaX) < threshold && Math.abs(deltaY) < threshold) {
+            return;
+          }
+          if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            handleDirection(deltaX > 0 ? 1 : -1, 0);
+          } else {
+            handleDirection(0, deltaY > 0 ? 1 : -1);
+          }
+          tracking = false;
+        },
+        { passive: true }
+      );
+    }
+
     startBtn.addEventListener("click", startGame);
     pauseBtn.addEventListener("click", pauseGame);
     restartBtn.addEventListener("click", () => {
@@ -593,10 +738,28 @@
     overlayBtn.addEventListener("click", handleOverlayStart);
 
     window.addEventListener("keydown", handleKey);
+    touchButtons.forEach((button) => {
+      button.addEventListener("pointerdown", handleTouchButton);
+    });
 
     bestEl.textContent = state.best;
     resetGame();
     requestAnimationFrame(step);
+    setupSwipeControls();
+
+    document.addEventListener(
+      "touchmove",
+      (event) => {
+        event.preventDefault();
+      },
+      { passive: false }
+    );
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
 
     window.addEventListener("beforeunload", () => {
       if (state.score > state.best) {
